@@ -144,23 +144,58 @@ app.get('/admin/best-profession', getProfile, async (req, res) => {
     try {
         const { Profile } = req.app.get('models');
         const { startDate, endDate } = req.query;
-   
+
         const result = await Profile.findAll({
             attributes: [
                 'profession',
-                [sequelize.literal('(SELECT SUM("Jobs"."price") FROM "Contracts" AS "Contract" LEFT JOIN "Jobs" ON "Contract"."id" = "Jobs"."ContractId" WHERE "Contract"."ContractorId" = "Profile"."id" AND "Jobs"."paid" = true AND "Jobs"."paymentDate" BETWEEN ? AND ?)'),'totalEarnings'],
-              ],
-              where: {
+                [sequelize.literal('(SELECT SUM("Jobs"."price") FROM "Contracts" AS "Contract" LEFT JOIN "Jobs" ON "Contract"."id" = "Jobs"."ContractId" WHERE "Contract"."ContractorId" = "Profile"."id" AND "Jobs"."paid" = true AND "Jobs"."paymentDate" BETWEEN ? AND ?)'), 'totalEarnings'],
+            ],
+            where: {
                 type: 'contractor',
-              },
-              group: ['profession'],
-              replacements: [startDate, endDate],
-              type: sequelize.QueryTypes.SELECT,
-              raw: true,
-              order: [[sequelize.literal('totalEarnings'), 'DESC']],
-          });
-          console.log(result)
+            },
+            replacements: [startDate, endDate],
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+            order: [[sequelize.literal('totalEarnings'), 'DESC']],
+        });
         res.json(result[0].profession)
+    }
+    catch (error) {
+        return res.status(500).json({ error: error.message })
+    };
+});
+
+app.get('/admin/best-clients', getProfile, async (req, res) => {
+    try {
+        const { Profile } = req.app.get('models');
+        const { startDate, endDate } = req.query;
+        const limit = req.query.limit || 2;
+        const result = await Profile.findAll({
+          attributes: [
+            'id',
+            'firstName',
+            'lastName',
+            [
+              sequelize.literal(
+                `(SELECT SUM("Jobs"."price") FROM "Contracts" AS "Contract" ` +
+                `LEFT JOIN "Jobs" ON "Contract"."id" = "Jobs"."ContractId" ` +
+                `WHERE "Contract"."ClientId" = "Profile"."id" ` +
+                `AND "Jobs"."paid" = true ` +
+                `AND "Jobs"."paymentDate" BETWEEN :startDate AND :endDate)`
+              ),
+              'totalPaid',
+            ],
+          ],
+          where: {
+            type: 'client',
+          },
+          replacements: { startDate, endDate },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+          order: [[sequelize.literal('totalPaid'), 'DESC']],
+          limit: limit,
+        });
+        res.json(result)
     }
     catch (error) {
         return res.status(500).json({ error: error.message })
